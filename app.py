@@ -1,7 +1,6 @@
-
+import datetime
 import io
 import tempfile
-import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -23,16 +22,12 @@ st.caption("Link único para o time. Desconto sem limite, parcelas editáveis e 
 st.markdown("### Dados do orçamento")
 cA, cB = st.columns(2)
 with cA:
-   nome_cliente = st.text_input("Nome do cliente",
-                             placeholder="Ex.: Prof. João Silva",
-                             key="rev_nome_cliente")
+    nome_cliente = st.text_input("Nome do cliente", placeholder="Ex.: Prof. João Silva")
 with cB:
-    consultor = st.text_input("Consultor",
-                          placeholder="Ex.: Lucas Martins",
-                          key="rev_consultor")
-observacoes = st.text_area("Observações (opcional)",
-                           placeholder="Valores válidos por 7 dias. Entrega estimada conforme cronograma.",
-                           key="rev_obs")
+    consultor = st.text_input("Consultor", placeholder="Ex.: Lucas Martins")
+observacoes = st.text_area(
+    "Observações (opcional)",
+    placeholder="Ex.: Valores válidos por 7 dias. Entrega estimada conforme cronograma.",
 )
 
 # ----------------- ENTRADAS -----------------
