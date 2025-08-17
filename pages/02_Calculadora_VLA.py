@@ -76,7 +76,7 @@ data_hoje = datetime.date.today().strftime("%d/%m/%Y")
 
 if usar_emojis:
     script = f"""
-Olá {nome_cliente or ''}! 😊
+Olá, {nome_cliente or ''}! 😊
 
 Segue proposta da Editora Dialética (data {data_hoje}), preparada por {consultor or 'Consultor'}.
 
@@ -84,10 +84,10 @@ Preço de capa: {br_money(preco_capa)}
 Tiragem: {int(qtd)} un.
 Desconto aplicado (política): {desconto_pct:.0f}%
 
-Total a pagar: {br_money(total)}
-Valor unitário: {br_money(unitario)}
-Parcela ({PARCELAS_PADRAO}x sem juros): {br_money(parcela)}
-Frete: {frete}
+💰 Total a pagar: {br_money(total)}
+💵 Valor unitário: {br_money(unitario)}
+💳 Parcela ({PARCELAS_PADRAO}x sem juros): {br_money(parcela)}
+🚚 Frete: {frete}
 
 Qualquer dúvida fico à disposição!
 """.strip()
