@@ -201,4 +201,3 @@ if gerar_pdf:
                                        mime="application/pdf")
             except Exception as e:
                 st.error(f"Falha ao gerar PDF (verifique o Microsoft Word): {e}")
-cipal
