@@ -94,7 +94,7 @@ Qualquer dúvida fico à disposição!
 else:
     # Versão SEM EMOJIS
     script = f"""
-Olá {nome_cliente or ''},
+Olá, {nome_cliente or ''},
 
 Segue proposta da Editora Dialética (data {data_hoje}), preparada por {consultor or 'Consultor'}.
 
