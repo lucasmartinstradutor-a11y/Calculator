@@ -1,4 +1,4 @@
-import Orcamento_Revisao  # shim: executa a página prinimport datetime
+
 import io
 import tempfile
 import datetime
@@ -23,12 +23,16 @@ st.caption("Link único para o time. Desconto sem limite, parcelas editáveis e 
 st.markdown("### Dados do orçamento")
 cA, cB = st.columns(2)
 with cA:
-    nome_cliente = st.text_input("Nome do cliente", placeholder="Ex.: Prof. João Silva")
+   nome_cliente = st.text_input("Nome do cliente",
+                             placeholder="Ex.: Prof. João Silva",
+                             key="rev_nome_cliente")
 with cB:
-    consultor = st.text_input("Consultor", placeholder="Ex.: Lucas Martins")
-observacoes = st.text_area(
-    "Observações (opcional)",
-    placeholder="Ex.: Valores válidos por 7 dias. Entrega estimada conforme cronograma.",
+    consultor = st.text_input("Consultor",
+                          placeholder="Ex.: Lucas Martins",
+                          key="rev_consultor")
+observacoes = st.text_area("Observações (opcional)",
+                           placeholder="Valores válidos por 7 dias. Entrega estimada conforme cronograma.",
+                           key="rev_obs")
 )
 
 # ----------------- ENTRADAS -----------------
