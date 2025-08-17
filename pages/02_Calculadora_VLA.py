@@ -67,26 +67,49 @@ m5.metric("Frete", frete)
 st.divider()
 
 # -------------------- SCRIPT PARA WHATSAPP/CRM --------------------
-st.subheader("Copiar e enviar 📄➡️📲")
+st.subheader("Copiar e enviar 📄➡️")
+
+# Se quiser manter como opção:
+usar_emojis = st.checkbox("Adicionar emojis no texto", value=False)
 
 data_hoje = datetime.date.today().strftime("%d/%m/%Y")
 
-script = f"""
+if usar_emojis:
+    script = f"""
 Olá {nome_cliente or ''}! 😊
 
 Segue proposta da Editora Dialética (data {data_hoje}), preparada por {consultor or 'Consultor'}.
 
-📘 Preço de capa: {br_money(preco_capa)}
-🧮 Tiragem: {int(qtd)} un.
-🎯 Desconto aplicado (política): {desconto_pct:.0f}%
+Preço de capa: {br_money(preco_capa)}
+Tiragem: {int(qtd)} un.
+Desconto aplicado (política): {desconto_pct:.0f}%
 
-💰 Total a pagar: {br_money(total)}
-💵 Valor unitário: {br_money(unitario)}
-💳 Parcela ({PARCELAS_PADRAO}x sem juros): {br_money(parcela)}
-🚚 Frete: {frete}
+Total a pagar: {br_money(total)}
+Valor unitário: {br_money(unitario)}
+Parcela ({PARCELAS_PADRAO}x sem juros): {br_money(parcela)}
+Frete: {frete}
 
-Qualquer dúvida fico à disposição! 🙂
+Qualquer dúvida fico à disposição!
+""".strip()
+else:
+    # Versão SEM EMOJIS
+    script = f"""
+Olá {nome_cliente or ''},
+
+Segue proposta da Editora Dialética (data {data_hoje}), preparada por {consultor or 'Consultor'}.
+
+Preço de capa: {br_money(preco_capa)}
+Tiragem: {int(qtd)} un.
+Desconto aplicado (política): {desconto_pct:.0f}%
+
+Total a pagar: {br_money(total)}
+Valor unitário: {br_money(unitario)}
+Parcela ({PARCELAS_PADRAO}x sem juros): {br_money(parcela)}
+Frete: {frete}
+
+Fico à disposição para dúvidas.
 """.strip()
 
 st.text_area("Script pronto para copiar", script, height=260)
 st.download_button("⬇️ Baixar script (.txt)", data=script, file_name="script_calculadora_vla.txt")
+
