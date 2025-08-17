@@ -3,9 +3,9 @@ import streamlit as st
 
 st.set_page_config(page_title="Calculadora VLA", page_icon="📚", layout="wide")
 
-# -------------------- CONSTANTES DE POLÍTICA --------------------
-# Ajuste aqui, se mudar a política.
-POLITICA_DESCONTOS = [
+# -------------------- POLÍTICAS --------------------
+# Acadêmico (política anterior)
+POLITICA_ACADEMICO = [
     {"min": 1,    "max": 49,   "pct": 0},
     {"min": 50,   "max": 99,   "pct": 20},
     {"min": 100,  "max": 149,  "pct": 30},
@@ -13,6 +13,21 @@ POLITICA_DESCONTOS = [
     {"min": 250,  "max": 999,  "pct": 45},
     {"min": 1000, "max": None, "pct": 50},
 ]
+
+# Literário (conforme a imagem enviada)
+POLITICA_LITERARIO = [
+    {"min": 1,    "max": 49,   "pct": 0},
+    {"min": 50,   "max": 99,   "pct": 20},
+    {"min": 100,  "max": 149,  "pct": 30},
+    {"min": 150,  "max": 249,  "pct": 32},
+    {"min": 250,  "max": 999,  "pct": 35},
+    {"min": 1000, "max": None, "pct": 40},
+]
+
+POLITICAS = {
+    "Acadêmico": POLITICA_ACADEMICO,
+    "Literário": POLITICA_LITERARIO,
+}
 
 PARCELAS_PADRAO = 10
 FRETE_GRATIS_MIN_QTD = 100
@@ -23,17 +38,19 @@ TXT_FRETE_CALC = "À calcular"
 def br_money(x: float) -> str:
     return f"R${x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-def pct_por_qtd(qtd: int) -> float:
-    for faixa in POLITICA_DESCONTOS:
+def pct_por_qtd(qtd: int, politica: list[dict]) -> float:
+    for faixa in politica:
         lo, hi, pct = faixa["min"], faixa["max"], faixa["pct"]
         if qtd >= lo and (hi is None or qtd <= hi):
             return float(pct)
-    # fallback: menor faixa
-    return float(POLITICA_DESCONTOS[0]["pct"])
+    return float(politica[0]["pct"])
 
 # -------------------- UI --------------------
 st.title("📚 Calculadora de Preços e Descontos (Autores)")
-st.caption("Entradas: autor, consultor, preço de capa e tiragem. Política de descontos fixa por quantidade. Gera script pronto para WhatsApp/CRM.")
+st.caption("Entradas: autor, consultor, preço de capa e tiragem. Política de descontos fixa por quantidade, com opção Acadêmico/Literário. Gera script pronto para WhatsApp/CRM.")
+
+# seletor do tipo de livro (troca a política)
+tipo = st.radio("Tipo de livro", ["Acadêmico", "Literário"], horizontal=True, index=0)
 
 id1, id2 = st.columns(2)
 with id1:
@@ -47,10 +64,15 @@ with c0:
 with c1:
     qtd = st.number_input("Quantidade (tiragem)", min_value=1, step=1, value=100)
 
+st.caption(f"Política aplicada • {tipo}: "
+           + ( "50–99: 20%, 100–149: 30%, 150–249: 40%, 250–999: 45%, 1000+: 50%"
+               if tipo == "Acadêmico"
+               else "50–99: 20%, 100–149: 30%, 150–249: 32%, 250–999: 35%, 1000+: 40%" ))
+
 # -------------------- CÁLCULO --------------------
-desconto_pct = pct_por_qtd(int(qtd))
+desconto_pct = pct_por_qtd(int(qtd), POLITICAS[tipo])
 bruto = preco_capa * qtd
-desconto_rs = bruto * (desconto_pct/100.0)
+desconto_rs = bruto * (desconto_pct / 100.0)
 total = bruto - desconto_rs
 unitario = total / qtd if qtd > 0 else 0
 parcela = total / PARCELAS_PADRAO
@@ -69,20 +91,19 @@ st.divider()
 # -------------------- SCRIPT PARA WHATSAPP/CRM --------------------
 st.subheader("Copiar e enviar 📄➡️")
 
-# Se quiser manter como opção:
 usar_emojis = st.checkbox("Adicionar emojis no texto", value=False)
-
 data_hoje = datetime.date.today().strftime("%d/%m/%Y")
 
 if usar_emojis:
     script = f"""
-Olá, {nome_cliente or ''}! 😊
+Olá {nome_cliente or ''}! 😊
 
 Segue proposta da Editora Dialética (data {data_hoje}), preparada por {consultor or 'Consultor'}.
 
-Preço de capa: {br_money(preco_capa)}
-Tiragem: {int(qtd)} un.
-Desconto aplicado (política): {desconto_pct:.0f}%
+📗 Tipo de livro: {tipo}
+📘 Preço de capa: {br_money(preco_capa)}
+🧮 Tiragem: {int(qtd)} un.
+🎯 Desconto aplicado (política): {desconto_pct:.0f}%
 
 💰 Total a pagar: {br_money(total)}
 💵 Valor unitário: {br_money(unitario)}
@@ -92,12 +113,12 @@ Desconto aplicado (política): {desconto_pct:.0f}%
 Qualquer dúvida fico à disposição!
 """.strip()
 else:
-    # Versão SEM EMOJIS
     script = f"""
-Olá, {nome_cliente or ''}!
+Olá {nome_cliente or ''},
 
 Segue proposta da Editora Dialética (data {data_hoje}), preparada por {consultor or 'Consultor'}.
 
+Tipo de livro: {tipo}
 Preço de capa: {br_money(preco_capa)}
 Tiragem: {int(qtd)} un.
 Desconto aplicado (política): {desconto_pct:.0f}%
@@ -112,4 +133,3 @@ Fico à disposição para dúvidas.
 
 st.text_area("Script pronto para copiar", script, height=260)
 st.download_button("⬇️ Baixar script (.txt)", data=script, file_name="script_calculadora_vla.txt")
-
