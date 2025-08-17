@@ -6,7 +6,7 @@ from pathlib import Path
 import streamlit as st
 from docxtpl import DocxTemplate
 
-# PDF opcional (requer Microsoft Word no macOS)
+# PDF opcional (requer Microsoft Word; no Streamlit Cloud mostrará aviso)
 try:
     from docx2pdf import convert as docx2pdf_convert
     DOCX2PDF_OK = True
@@ -16,7 +16,7 @@ except Exception:
 # ----------------- CONFIG -----------------
 st.set_page_config(page_title="Calculadora de Revisão", page_icon="📝")
 st.title("📝 Calculadora de Orçamento de Revisão (Dialética)")
-st.caption("Cálculo rápido + script de vendas para autores. Desconto sem limite e parcelas editáveis.")
+st.caption("Link único para o time. Desconto sem limite, parcelas editáveis e modelo DOCX padrão embutido.")
 
 # ----------------- DADOS DO ORÇAMENTO -----------------
 st.markdown("### Dados do orçamento")
@@ -84,7 +84,7 @@ st.write(f"**Prazo estimado:** {prazo_dias} dias (até {data_entrega})")
 
 st.divider()
 
-# ----------------- SCRIPT (só para copiar/WhatsApp) -----------------
+# ----------------- SCRIPT (para copiar – não vai para o DOCX por padrão) -----------------
 script = f"""
 Olá! 😊 Segue o orçamento da revisão ortográfica e gramatical (data: {data_orcamento}):
 
@@ -107,21 +107,37 @@ st.text_area("Script de venda (não vai para o DOCX por padrão)", script, heigh
 st.divider()
 
 # ----------------- DOCX/PDF -----------------
-st.subheader("Gerar orçamento no seu modelo")
-modelo = st.file_uploader(
-    "Envie o seu modelo .docx com placeholders (ex.: {{data_orcamento}}, {{nome_cliente}}, {{consultor}}, {{observacoes}}, {{palavras}}, {{preco_base}}, {{desconto_percent}}, {{valor_desconto}}, {{preco_final}}, {{num_parcelas}}, {{valor_parcela}}, {{parcelamento_texto}}, {{prazo_dias}}, {{data_entrega}})",
-    type=["docx"]
+st.subheader("Gerar orçamento (DOCX/PDF)")
+
+# 1) Escolha do modelo
+modelo_opcao = st.radio(
+    "Escolha o modelo:",
+    ["Usar modelo padrão (embutido)", "Enviar meu modelo .docx"],
+    horizontal=True,
 )
+
+modelo_bytes = None
+MODELO_PADRAO_PATH = Path("modelo_dialetica.docx")  # coloque este arquivo na raiz do repo
+
+if modelo_opcao == "Usar modelo padrão (embutido)":
+    if MODELO_PADRAO_PATH.exists():
+        modelo_bytes = MODELO_PADRAO_PATH.read_bytes()
+        st.success("Usando o modelo padrão embutido (logo/identidade já no arquivo).")
+    else:
+        st.error("Arquivo 'modelo_dialetica.docx' não encontrado no app. Envie seu modelo abaixo ou adicione ao repositório.")
+else:
+    up = st.file_uploader("Envie um modelo .docx com placeholders compatíveis", type=["docx"])
+    if up:
+        modelo_bytes = up.read()
 
 incluir_script_no_docx = st.checkbox("Incluir o script de venda dentro do DOCX", value=False)
 
+# Contexto para o template
 contexto = {
-    # cabeçalho/identificação
     "data_orcamento": data_orcamento,
     "nome_cliente": nome_cliente,
     "consultor": consultor,
     "observacoes": observacoes,
-    # números
     "palavras": br_int(int(palavras)),
     "valor_palavra": br_money(valor_palavra),
     "preco_base": br_money(preco_base),
@@ -130,13 +146,12 @@ contexto = {
     "preco_final": br_money(preco_final),
     "num_parcelas": int(num_parcelas),
     "valor_parcela": br_money(valor_parcela),
-    "parcelamento_texto": parcelamento_texto,  # prontinho para uma linha só
+    "parcelamento_texto": parcelamento_texto,
     "prazo_dias": prazo_dias,
     "data_entrega": data_entrega,
 }
-
 if incluir_script_no_docx:
-    contexto["script"] = script  # só inclui se marcado
+    contexto["script"] = script
 
 colA, colB = st.columns(2)
 with colA:
@@ -144,52 +159,44 @@ with colA:
 with colB:
     gerar_pdf = st.button("🧾 Gerar PDF (usa Microsoft Word)")
 
-# Geração do DOCX preenchido
-if gerar_docx:
-    if not modelo:
-        st.warning("Envie um arquivo de modelo .docx primeiro.")
-    else:
-        try:
-            tpl = DocxTemplate(io.BytesIO(modelo.read()))
-            tpl.render(contexto)
-            buf = io.BytesIO()
-            tpl.save(buf)
-            buf.seek(0)
-            nome = f"Orcamento_Rev_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
-            st.success("DOCX gerado com sucesso!")
-            st.download_button(
-                "⬇️ Baixar DOCX",
-                data=buf,
-                file_name=nome,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            )
-        except Exception as e:
-            st.error(f"Falha ao gerar DOCX: {e}")
+def _render_docx(bytes_or_none, ctx):
+    if not bytes_or_none:
+        st.warning("Selecione um modelo válido (embutido ou enviado).")
+        return None
+    try:
+        tpl = DocxTemplate(io.BytesIO(bytes_or_none))
+        tpl.render(ctx)
+        buf = io.BytesIO()
+        tpl.save(buf)
+        buf.seek(0)
+        return buf
+    except Exception as e:
+        st.error(f"Falha ao gerar DOCX: {e}")
+        return None
 
-# Conversão para PDF (requer Word no macOS)
+if gerar_docx:
+    buf = _render_docx(modelo_bytes, contexto)
+    if buf:
+        nome = f"Orcamento_Rev_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+        st.success("DOCX gerado com sucesso!")
+        st.download_button("⬇️ Baixar DOCX", data=buf, file_name=nome,
+                           mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
 if gerar_pdf:
-    if not modelo:
-        st.warning("Envie um arquivo de modelo .docx primeiro.")
-    elif not DOCX2PDF_OK:
-        st.info("Para PDF automático, instale Microsoft Word e o pacote 'docx2pdf'. Caso contrário, gere o DOCX e exporte para PDF manualmente.")
+    if not DOCX2PDF_OK:
+        st.info("Na nuvem, o PDF automático não está disponível (sem Microsoft Word). Gere o DOCX e exporte para PDF.")
     else:
-        try:
-            with tempfile.TemporaryDirectory() as td:
-                src = Path(td) / "saida.docx"
-                out_pdf = Path(td) / "saida.pdf"
-                # gerar DOCX temporário
-                tpl = DocxTemplate(io.BytesIO(modelo.read()))
-                tpl.render(contexto)
-                tpl.save(src.as_posix())
-                # converter
-                docx2pdf_convert(src.as_posix(), out_pdf.as_posix())
-                pdf_bytes = out_pdf.read_bytes()
-                st.success("PDF gerado com sucesso!")
-                st.download_button(
-                    "⬇️ Baixar PDF",
-                    data=pdf_bytes,
-                    file_name=f"Orcamento_Rev_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                    mime="application/pdf",
-                )
-        except Exception as e:
-            st.error(f"Falha ao gerar PDF (verifique o Microsoft Word): {e}")
+        tmp = _render_docx(modelo_bytes, contexto)
+        if tmp:
+            try:
+                with tempfile.TemporaryDirectory() as td:
+                    src = Path(td) / "saida.docx"
+                    out_pdf = Path(td) / "saida.pdf"
+                    src.write_bytes(tmp.getvalue())
+                    docx2pdf_convert(src.as_posix(), out_pdf.as_posix())
+                    st.success("PDF gerado com sucesso!")
+                    st.download_button("⬇️ Baixar PDF", data=out_pdf.read_bytes(),
+                                       file_name=f"Orcamento_Rev_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                                       mime="application/pdf")
+            except Exception as e:
+                st.error(f"Falha ao gerar PDF (verifique o Microsoft Word): {e}")
