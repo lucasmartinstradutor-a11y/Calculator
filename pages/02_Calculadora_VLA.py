@@ -96,7 +96,7 @@ data_hoje = datetime.date.today().strftime("%d/%m/%Y")
 
 if usar_emojis:
     script = f"""
-Olá {nome_cliente or ''}! 😊
+Olá, {nome_cliente or ''}! 😊
 
 Segue proposta da Editora Dialética (data {data_hoje}), preparada por {consultor or 'Consultor'}.
 
@@ -114,7 +114,7 @@ Qualquer dúvida fico à disposição!
 """.strip()
 else:
     script = f"""
-Olá {nome_cliente or ''},
+Olá, {nome_cliente or ''}!
 
 Segue proposta da Editora Dialética (data {data_hoje}), preparada por {consultor or 'Consultor'}.
 

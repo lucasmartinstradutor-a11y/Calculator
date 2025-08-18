@@ -1,283 +1,209 @@
-# pages/03_Orcamentos_Eliv.py
+# pages/03_Orcamentos_ELIV.py
 import io
 import datetime as dt
+from pathlib import Path
+
 import streamlit as st
-from docx import Document
+from docxtpl import DocxTemplate
 
-# --------------- CONFIG ----------------
-st.set_page_config(page_title="Orçamentos Eliv", page_icon="📦")
-st.title("Orçamentos Eliv")
+# ========================= CONFIG VISUAL =========================
+st.set_page_config(page_title="Orçamentos ELIV", page_icon="📦", layout="wide")
 
-K = "eliv_"  # prefixo para keys únicas
-
-# Tabela de preços de lista dos pacotes
-PACOTES = {
-    "Básico":   {"mensal": 349.00, "avista": 1884.60},
-    "Especial": {"mensal": 359.00, "avista": 1938.60},
-    "Premium":  {"mensal": 499.00, "avista": 2694.60},
+# CSS: números alinhados e avisa que os alerts usarão fonte normal
+st.markdown("""
+<style>
+/* números com largura fixa melhoram a leitura de valores */
+body, .stAlert p, .stMarkdown p, .st-emotion-cache-16idsys p {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
+</style>
+""", unsafe_allow_html=True)
 
-def br_money(v: float) -> str:
-    s = f"R${v:,.2f}"
+
+# ========================= HELPERS =========================
+def br_money(x: float | int) -> str:
+    """Formata para R$ 1.234,56."""
+    if x is None:
+        return "—"
+    s = f"R$ {x:,.2f}"
     return s.replace(",", "X").replace(".", ",").replace("X", ".")
 
-def docx_orcamento_universidade(
-    pacote_nome, forma_pag, preco_lista_total, preco_desconto_total, mensal_final,
-    desconto_pac_pct,
-    universidade, contato, autor, obra, paginas,
-    capa="flexível", papel="offset 75g", miolo="preto e branco",
-    preco_capa=99.90, tiragem_qtd=100, desc_tiragem_pct=30.0,
-    ebook_preco=60.90
-) -> bytes:
-    doc = Document()
-    h = doc.add_heading("Orçamento – Publicação ELIV", level=1)
+def escape_md(s: str) -> str:
+    """Escapa caracteres que o Markdown usa como sintaxe ($, _)"""
+    return s.replace("$", r"\$").replace("_", r"\_")
 
-    data = dt.date.today().strftime("%d/%m/%Y")
-    p = doc.add_paragraph()
-    p.add_run(f"Data do orçamento: {data}\n").bold = True
-
-    doc.add_paragraph(
-        f'A pedido de à {contato}, {universidade}, {autor}\n'
-        f'Editoração de obra "{obra}" com extensão de {paginas} páginas, '
-        f'com selo acadêmico, capa {capa}, papel {papel}, impressão do miolo {miolo}.'
-    )
-
-    doc.add_paragraph("")
-    doc.add_paragraph(f"Pacote selecionado: {pacote_nome}")
-    doc.add_paragraph(f"Forma de pagamento: {forma_pag}")
-    doc.add_paragraph(
-        f"Valor de lista: {br_money(preco_lista_total)} | "
-        f"Desconto aplicado: {desconto_pac_pct:.0f}% | "
-        f"Valor com desconto: {br_money(preco_desconto_total)}"
-        + (f" (6x de {br_money(mensal_final)})" if mensal_final else "")
-    ).bold = True
-
-    doc.add_paragraph("")
-    doc.add_paragraph("Serviços inclusos:")
-    items = [
-        "Diagramação",
-        "Design de capa e miolo",
-        "Registro ISBN e DOI",
-        "Produção das versões de Livro Físico e E-book",
-        "Venda",
-        "Distribuição virtual",
-    ]
-    for it in items:
-        doc.add_paragraph(f"• {it}")
-
-    doc.add_paragraph("")
-    doc.add_paragraph(f"Preço de capa sugerido (livro físico): {br_money(preco_capa)}")
-    doc.add_paragraph(
-        f"Para {tiragem_qtd} exemplares, desconto de {desc_tiragem_pct:.0f}%: "
-        f"preço unitário {br_money(preco_capa * (1 - desc_tiragem_pct/100))}"
-    )
-    total_tiragem = preco_capa * (1 - desc_tiragem_pct/100) * tiragem_qtd
-    doc.add_paragraph(f"Total da tiragem ({tiragem_qtd} un.): {br_money(total_tiragem)}").bold = True
-
-    doc.add_paragraph(f"Preço do e-book: {br_money(ebook_preco)}.")
-    total_geral = preco_desconto_total + total_tiragem
-    doc.add_paragraph(
-        f"Custo total: Editoração ({br_money(preco_desconto_total)}) + "
-        f"Tiragem ({br_money(total_tiragem)}): {br_money(total_geral)}"
-    ).bold = True
-
-    doc.add_paragraph("")
-    doc.add_paragraph(
-        "*O preço de capa é uma estimativa e pode mudar após a diagramação caso haja alteração das especificações."
-    )
-    doc.add_paragraph(
-        "*A tiragem deverá ser contratada ao final do processo de publicação, caso o autor deseje."
-    )
-    doc.add_paragraph("Validade da proposta: 15 dias.")
-
+def render_docxtpl(template_path: Path, context: dict) -> bytes:
+    tpl = DocxTemplate(str(template_path))
+    tpl.render(context)
     buf = io.BytesIO()
-    doc.save(buf)
+    tpl.save(buf)
     buf.seek(0)
     return buf.read()
 
-def docx_orcamento_comum(
-    pacote_nome, forma_pag, preco_lista_total, preco_desconto_total, mensal_final,
-    desconto_pac_pct, cliente, consultor, obra, paginas,
-    observacoes=""
-) -> bytes:
-    doc = Document()
-    doc.add_heading("Orçamento – Publicação ELIV", level=1)
+# Onde estão os templates (pasta na raiz do repo)
+# pages/ está um nível abaixo da raiz → parent.parent
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+TEMPLATE_COMUM = TEMPLATES_DIR / "ELIV_Comum.docx"
+TEMPLATE_UNI   = TEMPLATES_DIR / "ELIV_Universidade.docx"
 
-    data = dt.date.today().strftime("%d/%m/%Y")
-    doc.add_paragraph(f"Data do orçamento: {data}")
-    doc.add_paragraph(f"Cliente: {cliente or '—'}")
-    doc.add_paragraph(f"Consultor: {consultor or '—'}")
 
-    doc.add_paragraph("")
-    doc.add_paragraph(f'Obra: "{obra}" – {paginas} páginas.')
-    doc.add_paragraph(f"Pacote selecionado: {pacote_nome}")
-    doc.add_paragraph(f"Forma de pagamento: {forma_pag}")
-    doc.add_paragraph(
-        f"Valor de lista: {br_money(preco_lista_total)} | "
-        f"Desconto aplicado: {desconto_pac_pct:.0f}% | "
-        f"Valor com desconto: {br_money(preco_desconto_total)}"
-        + (f" (6x de {br_money(mensal_final)})" if mensal_final else "")
-    ).bold = True
+# ========================= TABELA DE PACOTES =========================
+# Valores a partir do seu material (imagem): 6x e à vista (PIX)
+PACOTES = {
+    "Básico":   {"lista_pix": 1884.60, "mensal_6x": 349.00, "parcelas": 6},
+    "Especial": {"lista_pix": 1938.60, "mensal_6x": 359.00, "parcelas": 6},
+    "Premium":  {"lista_pix": 2694.60, "mensal_6x": 499.00, "parcelas": 6},
+}
 
-    if observacoes:
-        doc.add_paragraph("")
-        doc.add_paragraph("Observações:")
-        doc.add_paragraph(observacoes)
+FORMAS = ["6x sem juros", "à vista (PIX)"]
 
-    doc.add_paragraph("")
-    doc.add_paragraph("Validade da proposta: 15 dias.")
 
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    return buf.read()
+# ========================= UI =========================
+st.title("📦 Orçamentos ELIV")
 
-# ----------------- UI -------------------
-c0, c1 = st.columns(2)
-cliente   = c0.text_input("Nome do cliente", key=f"{K}cliente")
-consultor = c1.text_input("Consultor", key=f"{K}consultor")
+# Dados principais (fica em uma aba separada da parte da universidade)
+tabs = st.tabs(["Dados principais", "Universidade (opcional)"])
+K = "eliv_"  # prefixo para keys únicas
 
-c2, c3 = st.columns(2)
-obra     = c2.text_input("Título da obra", key=f"{K}obra")
-paginas  = c3.number_input("Número de páginas", min_value=10, step=10, value=250, key=f"{K}pag")
+with tabs[0]:
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        cliente = st.text_input("Nome do cliente", placeholder="Ex.: Prof. João Silva", key=f"{K}cliente")
+        consultor = st.text_input("Consultor", placeholder="Ex.: Lucas Martins", key=f"{K}consultor")
+        obra = st.text_input("Título da obra", placeholder="Ex.: DICIONÁRIO TEMÁTICO DE TURISMO E PATRIMÔNIO", key=f"{K}obra")
+    with c2:
+        paginas = st.number_input("Nº de páginas", min_value=20, max_value=2000, step=10, value=250, key=f"{K}paginas")
+        pacote = st.selectbox("Pacote ELIV", list(PACOTES.keys()), index=1, key=f"{K}pacote")
+        forma_pag = st.selectbox("Forma de pagamento", FORMAS, index=0, key=f"{K}fpag")
 
-st.divider()
+    # Desconto padrão (15% sugerido)
+    desconto_pac_pct = st.slider("% de desconto no pacote", 0, 40, 15, 1, key=f"{K}desc_pac")
 
-c4, c5, c6 = st.columns(3)
-pacote = c4.selectbox("Pacote", list(PACOTES.keys()), index=1, key=f"{K}pacote")
-desconto_pac_pct = c5.number_input("% de desconto no pacote", min_value=0.0, max_value=100.0, value=15.0, step=1.0, key=f"{K}descpac")
-forma_pag = c6.radio("Forma de pagamento", ["6x sem juros", "À vista (PIX)"], horizontal=True, key=f"{K}fpag")
+    # Cálculos
+    base = PACOTES[pacote]["lista_pix"]
+    parcelas = PACOTES[pacote]["parcelas"]
+    total_com_desc = base * (1 - desconto_pac_pct/100)
+    mensal = (total_com_desc / parcelas) if forma_pag == "6x sem juros" else None
 
-# Preços de lista do pacote
-precos = PACOTES[pacote]
-preco_lista_total_6x = precos["mensal"] * 6
-preco_lista_avista   = precos["avista"]
+    # Quadro de resumo sem quebrar o Markdown por causa do "R$"
+    msg = f"Pacote **{pacote}** | **{forma_pag}** | **Com desconto:** {br_money(total_com_desc)}"
+    if mensal:
+        msg += f" ({parcelas}x de {br_money(mensal)})"
+    st.success(escape_md(msg))
 
-if forma_pag.startswith("6x"):
-    preco_lista_escolhido = preco_lista_total_6x
-else:
-    preco_lista_escolhido = preco_lista_avista
+    st.divider()
 
-preco_desconto_total = preco_lista_escolhido * (1 - desconto_pac_pct/100.0)
-mensal_final = (preco_desconto_total / 6.0) if forma_pag.startswith("6x") else None
-
-st.caption(
-    f"Lista — 6x: {br_money(preco_lista_total_6x)} (6×{br_money(precos['mensal'])}) · "
-    f"À vista: {br_money(preco_lista_avista)}"
-)
-st.success(
-    ("Pacote " + pacote + " | " + forma_pag +
-     f" | Com desconto: {br_money(preco_desconto_total)}" +
-     (f" (6x de {br_money(mensal_final)})" if mensal_final else "")
-    )
-)
-
-st.divider()
-
-# --------- Modo Universidade (mostra tiragem) ----------
-modo_uni = st.toggle("Orçamento para Universidade", value=False, key=f"{K}uni_toggle")
-
-if modo_uni:
-    u1, u2 = st.columns(2)
-    universidade = u1.text_input("Universidade", key=f"{K}uni_nome")
-    contato      = u2.text_input("Contato (Profa./Prof., telefone, etc.)", key=f"{K}uni_contato")
-
-    st.subheader("Tiragem da universidade")
-    t1, t2, t3 = st.columns(3)
-    preco_capa = t1.number_input("Preço de capa (R$)", min_value=0.0, value=99.90, step=0.10, format="%.2f", key=f"{K}capafis")
-    tiragem_qtd = t2.number_input("Quantidade", min_value=1, value=100, step=50, key=f"{K}tir_qtd")
-    desc_tiragem_pct = t3.number_input("% de desconto na tiragem", min_value=0.0, max_value=100.0, value=30.0, step=1.0, key=f"{K}tir_desc")
-
-    ebook_preco = st.number_input("Preço do e-book (R$)", min_value=0.0, value=60.90, step=0.10, format="%.2f", key=f"{K}ebookp")
-
-    preco_unit_liquido = preco_capa * (1 - desc_tiragem_pct/100)
-    total_tiragem = preco_unit_liquido * tiragem_qtd
-
-    st.info(
-        f"Unitário com desconto: {br_money(preco_unit_liquido)} | "
-        f"Total tiragem ({tiragem_qtd}): {br_money(total_tiragem)}"
-    )
-
-st.divider()
-
-# ---------------- Script pronto (sem emojis) ----------------
-st.subheader("Script para WhatsApp/CRM")
-data = dt.date.today().strftime("%d/%m/%Y")
-if modo_uni:
-    script = f"""Orçamento ELIV — {data}
-
-Cliente/Instituição: {cliente or '—'}
-Contato: {consultor or '—'}
-Universidade: {st.session_state.get(f"{K}uni_nome",'—')}
-Responsável na universidade: {st.session_state.get(f"{K}uni_contato",'—')}
-
-Obra: "{obra or '—'}" — {int(paginas)} páginas.
-Pacote: {pacote} | {forma_pag}
-Preço de lista: {br_money(preco_lista_escolhido)}
-Desconto no pacote: {desconto_pac_pct:.0f}% → {br_money(preco_desconto_total)}{(' (6x de ' + br_money(mensal_final) + ')') if mensal_final else ''}
-
-Tiragem: {int(st.session_state.get(f'{K}tir_qtd',0))} un.
-Preço de capa: {br_money(st.session_state.get(f'{K}capafis',0.0))}
-Desconto para universidade: {st.session_state.get(f'{K}tir_desc',0.0):.0f}% → unitário {br_money(preco_unit_liquido)}
-Total da tiragem: {br_money(total_tiragem)}
-
-Preço do e-book: {br_money(st.session_state.get(f'{K}ebookp',0.0))}
-
-Validade: 15 dias."""
-else:
-    script = f"""Orçamento ELIV — {data}
-
-Cliente: {cliente or '—'}
-Consultor: {consultor or '—'}
-Obra: "{obra or '—'}" — {int(paginas)} páginas.
-
-Pacote: {pacote} | {forma_pag}
-Preço de lista: {br_money(preco_lista_escolhido)}
-Desconto no pacote: {desconto_pac_pct:.0f}% → {br_money(preco_desconto_total)}{(' (6x de ' + br_money(mensal_final) + ')') if mensal_final else ''}
-
-Validade: 15 dias."""
-st.text_area("Script pronto para copiar", script, height=220, key=f"{K}script_area")
-st.download_button("Baixar script (.txt)", data=script, file_name="orcamento_eliv.txt", mime="text/plain", key=f"{K}down_script")
-
-st.divider()
-
-# ---------------- DOCX ----------------
-st.subheader("Gerar DOCX")
-
-if modo_uni:
-    if st.button("Gerar DOCX – Universidade", key=f"{K}btn_docx_uni"):
-        bin_doc = docx_orcamento_universidade(
-            pacote_nome=pacote,
-            forma_pag=forma_pag,
-            preco_lista_total=preco_lista_escolhido,
-            preco_desconto_total=preco_desconto_total,
-            mensal_final=mensal_final,
-            desconto_pac_pct=desconto_pac_pct,
-            universidade=st.session_state.get(f"{K}uni_nome",""),
-            contato=st.session_state.get(f"{K}uni_contato",""),
-            autor=consultor or "",
-            obra=obra or "",
-            paginas=int(paginas),
-            preco_capa=st.session_state.get(f"{K}capafis",99.90),
-            tiragem_qtd=int(st.session_state.get(f"{K}tir_qtd",0)),
-            desc_tiragem_pct=st.session_state.get(f"{K}tir_desc",0.0),
-            ebook_preco=st.session_state.get(f"{K}ebookp",0.0)
-        )
-        st.download_button("Baixar DOCX – Universidade", data=bin_doc, file_name="Orcamento_Universidade_ELIV.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key=f"{K}down_uni")
-else:
+    st.subheader("Gerar DOCX – Comum")
     obs = st.text_area("Observações (opcional)", key=f"{K}obs")
-    if st.button("Gerar DOCX – Comum", key=f"{K}btn_docx_comum"):
-        bin_doc = docx_orcamento_comum(
-            pacote_nome=pacote,
-            forma_pag=forma_pag,
-            preco_lista_total=preco_lista_escolhido,
-            preco_desconto_total=preco_desconto_total,
-            mensal_final=mensal_final,
-            desconto_pac_pct=desconto_pac_pct,
-            cliente=cliente or "",
-            consultor=consultor or "",
-            obra=obra or "",
-            paginas=int(paginas),
-            observacoes=obs or ""
-        )
-        st.download_button("Baixar DOCX – Comum", data=bin_doc, file_name="Orcamento_Comum_ELIV.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", key=f"{K}down_comum")
+
+    btn_comum = st.button("Gerar DOCX – Comum", type="primary", key=f"{K}btn_docx_comum")
+    if btn_comum:
+        # Contexto do template COMUM
+        context = {
+            "data": dt.date.today().strftime("%d/%m/%Y"),
+            "cliente": cliente or "",
+            "consultor": consultor or "",
+            "obra": obra or "",
+            "paginas": int(paginas),
+            "pacote": pacote,
+            "forma_pag": forma_pag,
+            "preco_lista": br_money(base),
+            "desc_pac_pct": f"{desconto_pac_pct:.0f}%",
+            "valor_com_desconto": br_money(total_com_desc),
+            "mensal_final": br_money(mensal) if mensal else "",
+            "observacoes": obs or "",
+        }
+        if not TEMPLATE_COMUM.exists():
+            st.error("Template **ELIV_Comum.docx** não encontrado em /templates.")
+        else:
+            bin_doc = render_docxtpl(TEMPLATE_COMUM, context)
+            st.download_button(
+                "Baixar DOCX – Comum",
+                data=bin_doc,
+                file_name="Orcamento_Comum_ELIV.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key=f"{K}down_comum"
+            )
+
+
+with tabs[1]:
+    st.markdown("Ative esta seção **apenas** quando o orçamento for para Universidade. O nome do **autor/responsável** será o *nome do cliente* informado na aba anterior.")
+    modo_uni = st.toggle("Orçamento para Universidade", value=False, key=f"{K}modo_uni")
+
+    if modo_uni:
+        cA, cB, cC = st.columns([1, 1, 1])
+        with cA:
+            universidade = st.text_input("Universidade", placeholder="Ex.: Universidade Federal de Viçosa", key=f"{K}uni_nome")
+        with cB:
+            tratamento = st.selectbox(
+                "Pronome de tratamento",
+                ["Prof.", "Profa.", "Prof. Dr.", "Profa. Dra.", "Sr.", "Sra.", "Doutor", "Doutora"],
+                index=1, key=f"{K}trat"
+            )
+        with cC:
+            contato = st.text_input("Contato (telefone/email)", placeholder="Ex.: (31) 99999-0000", key=f"{K}uni_contato")
+
+        st.subheader("Tiragem da universidade")
+        c1, c2, c3 = st.columns([1, 1, 1])
+        with c1:
+            preco_capa = st.number_input("Preço de capa (R$)", min_value=10.00, step=0.50, value=75.00, key=f"{K}capafis")
+        with c2:
+            tir_qtd = st.number_input("Quantidade", min_value=10, step=10, value=100, key=f"{K}tir_qtd")
+        with c3:
+            tir_desc_pct = st.number_input("% de desconto na tiragem", min_value=0.0, step=1.0, value=30.0, key=f"{K}tir_desc")
+
+        ebook_preco = st.number_input("Preço do e-book (R$)", min_value=0.0, step=1.0, value=0.0, key=f"{K}ebookp")
+
+        # Cálculos de tiragem
+        unitario_desc = preco_capa * (1 - tir_desc_pct/100)
+        total_tiragem = unitario_desc * tir_qtd
+
+        azul = f"Unitário com desconto: {br_money(unitario_desc)}  |  **Total tiragem ({int(tir_qtd)})** : {br_money(total_tiragem)}"
+        st.info(escape_md(azul))
+
+        st.subheader("Gerar DOCX – Universidade")
+        btn_uni = st.button("Gerar DOCX – Universidade", type="primary", key=f"{K}btn_docx_uni")
+
+        if btn_uni:
+            # Autor/responsável = nome do cliente (aba 1)
+            autor = cliente or ""
+
+            context = {
+                "data": dt.date.today().strftime("%d/%m/%Y"),
+                # Cabeçalho específico de universidade
+                "universidade": universidade or "",
+                "contato": contato or "",
+                "tratamento": tratamento or "",
+                "autor": autor,
+                # Obra / pacote / forma de pagamento
+                "obra": obra or "",
+                "paginas": int(paginas),
+                "pacote": pacote,
+                "forma_pag": forma_pag,
+                "preco_lista": br_money(base),
+                "desc_pac_pct": f"{desconto_pac_pct:.0f}%",
+                "valor_com_desconto": br_money(total_com_desc),
+                "mensal_final": br_money(mensal) if mensal else "",
+                # Tiragem / e-book
+                "preco_capa": br_money(preco_capa),
+                "desc_tiragem_pct": f"{tir_desc_pct:.0f}%",
+                "preco_unitario": br_money(unitario_desc),
+                "tiragem_qtd": int(tir_qtd),
+                "total_tiragem": br_money(total_tiragem),
+                "ebook_preco": br_money(ebook_preco),
+                # Total geral (editoração + tiragem)
+                "total_geral": br_money(total_com_desc + total_tiragem),
+            }
+
+            if not TEMPLATE_UNI.exists():
+                st.error("Template **ELIV_Universidade.docx** não encontrado em /templates.")
+            else:
+                bin_doc = render_docxtpl(TEMPLATE_UNI, context)
+                st.download_button(
+                    "Baixar DOCX – Universidade",
+                    data=bin_doc,
+                    file_name="Orcamento_Universidade_ELIV.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key=f"{K}down_uni"
+                )
